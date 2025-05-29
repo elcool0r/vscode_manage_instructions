@@ -2,8 +2,8 @@
   "name": "github-copilot-instructions-sync",
   "displayName": "Github Copilot Instructions Sync",
   "description": "Sync copilot-instructions.md files with GitHub Gists",
-  "version": "1.6.5",
-  "publisher": "elcool0r",
+  "version": "1.6.6",
+  "publisher": "kuhlpunktde",
   "repository": {
     "type": "git",
     "url": "https://github.com/elcool0r/vscode_manage_instructions.git"
