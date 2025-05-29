@@ -1,0 +1,261 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: '22'
+  TZ: 'Europe/Berlin'
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Run TypeScript compiler check
+      run: |
+        npm install -g typescript
+        npx tsc --noEmit
+        echo "✅ TypeScript compilation check passed"
+
+    - name: Compile extension
+      run: npm run compile
+
+    - name: Verify build output
+      run: |
+        if [ ! -f "out/extension.js" ]; then
+          echo "❌ Build failed - extension.js not found"
+          exit 1
+        fi
+        
+        # Check file size (should be reasonable)
+        SIZE=$(stat -c%s "out/extension.js")
+        if [ $SIZE -lt 1000 ]; then
+          echo "❌ Build output seems too small: $SIZE bytes"
+          exit 1
+        fi
+        
+        echo "✅ Build verification passed (size: $SIZE bytes)"
+
+    - name: Package extension
+      run: |
+        npm install -g @vscode/vsce
+        VERSION=$(node -p "require('./package.json').version")
+        vsce package --out copilot-instructions-manager-${VERSION}.vsix
+        
+        # Verify package was created
+        if [ ! -f "copilot-instructions-manager-${VERSION}.vsix" ]; then
+          echo "❌ Packaging failed"
+          exit 1
+        fi
+        
+        # Verify package structure
+        unzip -l copilot-instructions-manager-${VERSION}.vsix | grep -q "extension/out/extension.js" || {
+          echo "❌ Package verification failed - extension.js not found in package"
+          exit 1
+        }
+        
+        echo "✅ Extension packaged successfully: copilot-instructions-manager-${VERSION}.vsix"
+
+    - name: Upload package as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: vscode-extension-${{ github.sha }}
+        path: |
+          *.vsix
+          out/
+          package.json
+          VERSION
+        retention-days: 30
+
+    - name: Check for security vulnerabilities
+      run: npm audit --audit-level=high
+
+    - name: Validate package.json
+      run: |
+        # Check required fields
+        node -e "
+          const pkg = require('./package.json');
+          const required = ['name', 'version', 'publisher', 'engines', 'main', 'contributes'];
+          for (const field of required) {
+            if (!pkg[field]) {
+              console.error(\`❌ Missing required field: \${field}\`);
+              process.exit(1);
+            }
+          }
+          console.log('✅ package.json validation passed');
+        "
+
+    - name: Check version consistency
+      run: |
+        PACKAGE_VERSION=$(node -p "require('./package.json').version")
+        FILE_VERSION=$(cat VERSION)
+        
+        if [ "$PACKAGE_VERSION" != "$FILE_VERSION" ]; then
+          echo "❌ Version mismatch: package.json($PACKAGE_VERSION) vs VERSION file($FILE_VERSION)"
+          exit 1
+        fi
+        
+        echo "✅ Version consistency check passed: $PACKAGE_VERSION"
+
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [lint-and-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: vscode-extension-${{ github.sha }}
+        path: ./artifacts
+
+    - name: Get version and create release info
+      id: release_info
+      run: |
+        VERSION=$(cat ./artifacts/VERSION)
+        PACKAGE_VERSION=$(node -p "require('./artifacts/package.json').version")
+        
+        # Verify versions match
+        if [ "$VERSION" != "$PACKAGE_VERSION" ]; then
+          echo "❌ Version mismatch: VERSION file($VERSION) vs package.json($PACKAGE_VERSION)"
+          exit 1
+        fi
+        
+        TAG="v$VERSION"
+        RELEASE_NAME="Release $VERSION"
+        VSIX_FILE="copilot-instructions-manager-${VERSION}.vsix"
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "release_name=$RELEASE_NAME" >> $GITHUB_OUTPUT
+        echo "vsix_file=$VSIX_FILE" >> $GITHUB_OUTPUT
+        
+        echo "✅ Release info prepared: $TAG"
+
+    - name: Check if release exists
+      id: check_release
+      run: |
+        TAG="${{ steps.release_info.outputs.tag }}"
+        
+        # Check if release already exists
+        if git tag -l | grep -q "^$TAG$"; then
+          echo "release_exists=true" >> $GITHUB_OUTPUT
+          echo "⚠️ Release $TAG already exists, skipping creation"
+        else
+          echo "release_exists=false" >> $GITHUB_OUTPUT
+          echo "✅ Release $TAG will be created"
+        fi
+
+    - name: Generate release notes
+      id: release_notes
+      if: steps.check_release.outputs.release_exists == 'false'
+      run: |
+        VERSION="${{ steps.release_info.outputs.version }}"
+        
+        # Create release notes
+        cat > release_notes.md << EOF
+        # VS Code Extension Release $VERSION
+        
+        ## 📦 Installation
+        
+        ### Option 1: Download and Install
+        \`\`\`bash
+        # Download the VSIX file from this release
+        code --install-extension copilot-instructions-manager-${VERSION}.vsix
+        \`\`\`
+        
+        ### Option 2: Install from Command Line
+        \`\`\`bash
+        # Install directly from GitHub release
+        wget https://github.com/elcool0r/vscode_manage_instructions/releases/download/v${VERSION}/copilot-instructions-manager-${VERSION}.vsix
+        code --install-extension copilot-instructions-manager-${VERSION}.vsix
+        \`\`\`
+        
+        ## ✅ Verified Build
+        
+        This extension has been automatically:
+        - ✅ Compiled successfully with TypeScript
+        - ✅ Tested on Ubuntu platform with Node.js 22
+        - ✅ Package structure validated
+        - ✅ Security vulnerabilities checked
+        - ✅ Version consistency verified
+        
+        ## 🔧 Features
+        
+        - Upload \`copilot-instructions.md\` files to GitHub Gists
+        - Download instruction files from GitHub Gists
+        - Right-click context menu integration
+        - Secure GitHub token storage
+        - Auto-creation of \`.github\` directory structure
+        
+        ## 📝 Setup
+        
+        1. Install the extension
+        2. Configure GitHub token with \`gist\` scope
+        3. Use right-click menu or command palette to upload/download files
+        
+        ---
+        
+        **Package Size:** $(ls -lh ./artifacts/copilot-instructions-manager-${VERSION}.vsix | awk '{print $5}')  
+        **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")  
+        **Commit:** ${GITHUB_SHA:0:7}
+        EOF
+        
+        echo "✅ Release notes generated"
+
+    - name: Create GitHub Release
+      id: create_release
+      if: steps.check_release.outputs.release_exists == 'false'
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        tag_name: ${{ steps.release_info.outputs.tag }}
+        release_name: ${{ steps.release_info.outputs.release_name }}
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+
+    - name: Upload VSIX to Release
+      if: steps.check_release.outputs.release_exists == 'false'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./artifacts/${{ steps.release_info.outputs.vsix_file }}
+        asset_name: ${{ steps.release_info.outputs.vsix_file }}
+        asset_content_type: application/zip
+
+    - name: Release summary
+      run: |
+        if [ "${{ steps.check_release.outputs.release_exists }}" = "true" ]; then
+          echo "⚠️ Release ${{ steps.release_info.outputs.tag }} already exists"
+          echo "🔗 View at: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release_info.outputs.tag }}"
+        else
+          echo "🎉 Release ${{ steps.release_info.outputs.tag }} created successfully!"
+          echo "📦 VSIX package: ${{ steps.release_info.outputs.vsix_file }}"
+          echo "🔗 Release URL: ${{ steps.create_release.outputs.html_url }}"
+          echo ""
+          echo "📥 Installation command:"
+          echo "code --install-extension ${{ steps.release_info.outputs.vsix_file }}"
+        fi

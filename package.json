@@ -1,0 +1,141 @@
+{
+  "name": "github-copilot-instructions-sync",
+  "displayName": "Github Copilot Instructions Sync",
+  "description": "Sync copilot-instructions.md files with GitHub Gists",
+  "version": "1.6.5",
+  "publisher": "elcool0r",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elcool0r/vscode_manage_instructions.git"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "copilot-instructions.sync",
+        "title": "Sync Copilot Instructions",
+        "category": "Copilot Instructions"
+      },
+
+      {
+        "command": "copilot-instructions.configure",
+        "title": "Configure GitHub Gist Settings",
+        "category": "Copilot Instructions"
+      },
+      {
+        "command": "copilot-instructions.openConfigPage",
+        "title": "Open Configuration Page",
+        "category": "Copilot Instructions"
+      }
+
+    ],
+    "submenus": [
+      {
+        "id": "copilot-instructions.submenu",
+        "label": "Copilot Instructions"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "submenu": "copilot-instructions.submenu",
+          "when": "explorerResourceIsFolder || resourceFilename == copilot-instructions.md",
+          "group": "7_modification"
+        }
+      ],
+      "copilot-instructions.submenu": [
+        {
+          "command": "copilot-instructions.sync",
+          "when": "resourceFilename == copilot-instructions.md || explorerResourceIsFolder",
+          "group": "1_sync"
+        },
+        {
+          "command": "copilot-instructions.openConfigPage",
+          "group": "2_settings"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "copilot-instructions.sync",
+          "when": "true"
+        },
+        {
+          "command": "copilot-instructions.configure",
+          "when": "true"
+        },
+        {
+          "command": "copilot-instructions.openConfigPage",
+          "when": "true"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Github Copilot Instructions Sync",
+      "properties": {
+        "copilotInstructions.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Auth Token for Gist API access",
+          "markdownDescription": "GitHub Personal Auth Token with `gist` scope. [Create one here](https://github.com/settings/tokens/new?scopes=gist&description=Github%20Copilot%20Instructions%20Sync)"
+        },
+        "copilotInstructions.gistId": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Gist ID for storing copilot-instructions.md"
+        },
+        "copilotInstructions.autoManageGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically add copilot-instructions.md to .gitignore when downloading from gist"
+        },
+        "copilotInstructions.autoDownloadOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically download newer copilot-instructions.md from gist if workspace has an older version"
+        },
+        "copilotInstructions.periodicSyncEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic periodic synchronization to check for changes"
+        },
+        "copilotInstructions.periodicSyncInterval": {
+          "type": "number",
+          "default": 30,
+          "minimum": 1,
+          "maximum": 1440,
+          "description": "Interval in minutes for periodic sync checks (1-1440 minutes)"
+        },
+        "copilotInstructions.realTimeSyncEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable real-time file change detection and immediate synchronization"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/node-fetch": "^2.6.12",
+    "@types/vscode": "^1.74.0",
+    "@vscode/vsce": "^3.4.2",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  }
+}
