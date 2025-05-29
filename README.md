@@ -10,16 +10,12 @@ A VS Code extension for managing your `copilot-instructions.md` file with GitHub
 
 - **🚀 One-click Upload**: Right-click on `copilot-instructions.md` to upload it to a GitHub Gist
 - **📥 Easy Download**: Right-click in the file explorer to download the latest version
-- **📁 Auto-create directories**: Automatically creates `.github` directory when downloading
-- **🔒 Auto-manage .gitignore**: Automatically adds `copilot-instructions.md` to `.gitignore` when downloading (configurable)
 - **🔄 Version Management**: Automatic version tracking and increment on each upload
 - **🎯 Auto-Download on Startup**: Automatically checks for newer instructions files when opening workspaces (enabled by default)
 - **⏰ Periodic Sync**: Automatically checks for changes at configurable intervals (30 minutes default, enabled by default)
 - **📋 Template Creation**: Creates comprehensive instruction templates when no file exists in gist
 - **⚙️ Simple Configuration**: Easy setup for GitHub token, Gist ID, and behavior preferences
 - **🔄 Smart Updates**: Automatically updates existing Gists or creates new ones
-- **🎯 Command Palette**: Full integration with VS Code Command Palette
-- **🔕 Silent Operation**: Configurable notifications (disabled by default for unobtrusive operation)
 - **🔒 Secure**: Your GitHub token is stored securely in VS Code's configuration
 
 ## 🆕 What's New in v1.6.2
